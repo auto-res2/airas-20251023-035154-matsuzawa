@@ -1,0 +1,103 @@
+wandb:
+  entity: gengaru617-personal
+  project: 251023-test
+  mode: disabled
+model:
+  name: two-layer-mlp-1.2m
+  input_dim: 784
+  hidden_units: 256
+  output_classes: 10
+  activation: relu
+  weight_init: kaiming_uniform
+dataset:
+  name: fashion-mnist
+  transforms:
+  - ToTensor
+  - Normalize(mean=0.5, std=0.5)
+  validation_split: 0.1
+training:
+  batch_size: 128
+  optimizer: adam
+  device: cuda
+  learning_rate: 0.001
+  epochs_per_iteration: 1
+  num_workers: 4
+  pin_memory: true
+experiment:
+  n_init_points: 1
+  total_evaluations: 1
+  acquisition: boil
+  beta_default: 1.0
+optuna:
+  n_trials: 0
+  search_space:
+    learning_rate:
+      type: loguniform
+      low: 0.0001
+      high: 0.1
+    hidden_units:
+      type: int
+      low: 64
+      high: 512
+    training_iteration_budget:
+      type: int
+      low: 1
+      high: 15
+    beta:
+      type: categorical
+      choices:
+      - 0.5
+      - 1.0
+results_dir: .research/iteration1
+trial_mode: true
+run:
+  run_id: proposed-Two-Layer-MLP-1.2M-Fashion-MNIST
+  method: S-BOIL
+  model:
+    name: Two-Layer-MLP-1.2M
+    input_dim: 784
+    hidden_units: 256
+    output_classes: 10
+    activation: relu
+    weight_init: kaiming_uniform
+  dataset:
+    name: Fashion-MNIST
+    transforms:
+    - ToTensor
+    - Normalize(mean=0.5, std=0.5)
+    validation_split: 0.1
+  training:
+    batch_size: 128
+    optimizer: adam
+    loss_fn: cross_entropy
+    device: cuda
+    default_learning_rate: 0.001
+    epochs_per_iteration: 5
+    num_workers: 8
+    pin_memory: true
+  experiment:
+    n_init_points: 3
+    total_evaluations: 30
+    acquisition: S-BOIL
+    beta_default: 1.0
+  optuna:
+    n_trials: 30
+    direction: maximize
+    search_space:
+      learning_rate:
+        type: loguniform
+        low: 0.0001
+        high: 0.1
+      hidden_units:
+        type: int
+        low: 64
+        high: 512
+      training_iteration_budget:
+        type: int
+        low: 1
+        high: 15
+      beta:
+        type: categorical
+        choices:
+        - 0.5
+        - 1.0
