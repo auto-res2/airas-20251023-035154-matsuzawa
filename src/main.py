@@ -23,7 +23,7 @@ def main(cfg: DictConfig) -> None:
     out_root.mkdir(parents=True, exist_ok=True)
 
     overrides: List[str] = [
-        f"run={cfg.run._config_name_}",  # select the **same** run variant
+        f"run={cfg.run.run_id}",  # select the **same** run variant
         f"results_dir={cfg.results_dir}",
     ]
     if cfg.trial_mode:
