@@ -216,17 +216,30 @@ def main(cfg: DictConfig) -> None:  # noqa: C901 – function is inevitably long
         OmegaConf.save(global_wb_cfg, global_cfg_path)
 
     # ------------------------------ WandB -------------------------------------
-    wb_run = wandb.init(
-        entity=cfg.wandb.entity,
-        project=cfg.wandb.project,
-        id=cfg.run.run_id,
-        dir=str(run_dir),
-        mode=cfg.wandb.mode,
-        resume="allow",
-        config=OmegaConf.to_container(cfg, resolve=True),
-    )
-    if cfg.wandb.mode != "disabled":
-        print(f"[WandB] run URL: {wb_run.url}")
+    try:
+        wb_run = wandb.init(
+            entity=cfg.wandb.entity,
+            project=cfg.wandb.project,
+            id=cfg.run.run_id,
+            dir=str(run_dir),
+            mode=cfg.wandb.mode,
+            resume="allow",
+            config=OmegaConf.to_container(cfg, resolve=True),
+        )
+        if cfg.wandb.mode != "disabled":
+            print(f"[WandB] run URL: {wb_run.url}")
+    except wandb.errors.UsageError as e:
+        print(f"[WandB] Authentication failed: {e}")
+        print("[WandB] Falling back to disabled mode")
+        wb_run = wandb.init(
+            entity=cfg.wandb.entity,
+            project=cfg.wandb.project,
+            id=cfg.run.run_id,
+            dir=str(run_dir),
+            mode="disabled",
+            resume="allow",
+            config=OmegaConf.to_container(cfg, resolve=True),
+        )
 
     device = torch.device(cfg.training.device if torch.cuda.is_available() else "cpu")
     rng = np.random.default_rng(seed=42)
