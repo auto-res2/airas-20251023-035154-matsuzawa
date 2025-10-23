@@ -318,7 +318,7 @@ def main(cfg: DictConfig) -> None:  # noqa: C901 – function is inevitably long
         }, step=(ev + 1) * 10_000)
 
         # first time hitting 0.8 accuracy ⇒ record time-to-target
-        if v_acc >= 0.8 and "time_to_target" not in wb_run.summary:
+        if v_acc >= 0.8 and wb_run.summary.get("time_to_target") is None:
             wb_run.summary["time_to_target"] = float(sum(C))
             wb_run.summary["evals_to_target"] = ev + 1
 
