@@ -69,6 +69,78 @@
         "hidden_units": "64-512",
         "training_iteration_budget": "1-15",
         "beta": "0.5,1"
+      },
+      "external_resources": {
+        "hugging_face": {
+          "models": [],
+          "datasets": [
+            {
+              "id": "zalando-datasets/fashion_mnist",
+              "author": "zalando-datasets",
+              "sha": "531be5e2ccc9dba0c201ad3ae567a4f3d16ecdd2",
+              "created_at": "2022-03-02T23:29:22+00:00",
+              "last_modified": "2024-08-08T06:10:25+00:00",
+              "private": false,
+              "gated": false,
+              "disabled": false,
+              "downloads": 10367,
+              "likes": 63,
+              "siblings": [
+                {
+                  "rfilename": ".gitattributes"
+                },
+                {
+                  "rfilename": "README.md"
+                },
+                {
+                  "rfilename": "fashion_mnist/test-00000-of-00001.parquet"
+                },
+                {
+                  "rfilename": "fashion_mnist/train-00000-of-00001.parquet"
+                }
+              ],
+              "card_data": {
+                "license": [
+                  "mit"
+                ],
+                "language": [
+                  "en"
+                ],
+                "tags": [],
+                "datasets": [],
+                "task_categories": [
+                  "image-classification"
+                ],
+                "size_categories": [
+                  "10K<n<100K"
+                ],
+                "metrics": [],
+                "widget": []
+              },
+              "tags": [
+                "task_categories:image-classification",
+                "task_ids:multi-class-image-classification",
+                "annotations_creators:expert-generated",
+                "language_creators:found",
+                "multilinguality:monolingual",
+                "source_datasets:original",
+                "language:en",
+                "license:mit",
+                "size_categories:10K<n<100K",
+                "format:parquet",
+                "modality:image",
+                "library:datasets",
+                "library:pandas",
+                "library:mlcroissant",
+                "library:polars",
+                "arxiv:1708.07747",
+                "region:us"
+              ],
+              "readme": "---\nannotations_creators:\n- expert-generated\nlanguage_creators:\n- found\nlanguage:\n- en\nlicense:\n- mit\nmultilinguality:\n- monolingual\nsize_categories:\n- 10K<n<100K\nsource_datasets:\n- original\ntask_categories:\n- image-classification\ntask_ids:\n- multi-class-image-classification\npaperswithcode_id: fashion-mnist\npretty_name: FashionMNIST\ndataset_info:\n  config_name: fashion_mnist\n  features:\n  - name: image\n    dtype: image\n  - name: label\n    dtype:\n      class_label:\n        names:\n          '0': T - shirt / top\n          '1': Trouser\n          '2': Pullover\n          '3': Dress\n          '4': Coat\n          '5': Sandal\n          '6': Shirt\n          '7': Sneaker\n          '8': Bag\n          '9': Ankle boot\n  splits:\n  - name: train\n    num_bytes: 31049107.0\n    num_examples: 60000\n  - name: test\n    num_bytes: 5192560.0\n    num_examples: 10000\n  download_size: 36106894\n  dataset_size: 36241667.0\nconfigs:\n- config_name: fashion_mnist\n  data_files:\n  - split: train\n    path: fashion_mnist/train-*\n  - split: test\n    path: fashion_mnist/test-*\n  default: true\n---\n\n# Dataset Card for FashionMNIST\n\n## Table of Contents\n- [Dataset Description](#dataset-description)\n  - [Dataset Summary](#dataset-summary)\n  - [Supported Tasks and Leaderboards](#supported-tasks-and-leaderboards)\n  - [Languages](#languages)\n- [Dataset Structure](#dataset-structure)\n  - [Data Instances](#data-instances)\n  - [Data Fields](#data-fields)\n  - [Data Splits](#data-splits)\n- [Dataset Creation](#dataset-creation)\n  - [Curation Rationale](#curation-rationale)\n  - [Source Data](#source-data)\n  - [Annotations](#annotations)\n  - [Personal and Sensitive Information](#personal-and-sensitive-information)\n- [Considerations for Using the Data](#considerations-for-using-the-data)\n  - [Social Impact of Dataset](#social-impact-of-dataset)\n  - [Discussion of Biases](#discussion-of-biases)\n  - [Other Known Limitations](#other-known-limitations)\n- [Additional Information](#additional-information)\n  - [Dataset Curators](#dataset-curators)\n  - [Licensing Information](#licensing-information)\n  - [Citation Information](#citation-information)\n  - [Contributions](#contributions)\n\n## Dataset Description\n\n- **Homepage:** [GitHub](https://github.com/zalandoresearch/fashion-mnist)\n- **Repository:** [GitHub](https://github.com/zalandoresearch/fashion-mnist)\n- **Paper:** [arXiv](https://arxiv.org/pdf/1708.07747.pdf)\n- **Leaderboard:**\n- **Point of Contact:**\n\n### Dataset Summary\n\nFashion-MNIST is a dataset of Zalando's article images—consisting of a training set of 60,000 examples and a test set of 10,000 examples. Each example is a 28x28 grayscale image, associated with a label from 10 classes. We intend Fashion-MNIST to serve as a direct drop-in replacement for the original MNIST dataset for benchmarking machine learning algorithms. It shares the same image size and structure of training and testing splits.\n\n### Supported Tasks and Leaderboards\n\n- `image-classification`: The goal of this task is to classify a given image of Zalando's article into one of 10 classes. The leaderboard is available [here](https://paperswithcode.com/sota/image-classification-on-fashion-mnist).\n\n### Languages\n\n[More Information Needed]\n\n## Dataset Structure\n\n### Data Instances\n\nA data point comprises an image and its label.\n\n```\n{\n  'image': <PIL.PngImagePlugin.PngImageFile image mode=L size=28x28 at 0x27601169DD8>,\n  'label': 9\n}\n```\n\n### Data Fields\n\n- `image`: A `PIL.Image.Image` object containing the 28x28 image. Note that when accessing the image column: `dataset[0][\"image\"]` the image file is automatically decoded. Decoding of a large number of image files might take a significant amount of time. Thus it is important to first query the sample index before the `\"image\"` column, *i.e.* `dataset[0][\"image\"]` should **always** be preferred over `dataset[\"image\"][0]`.\n- `label`: an integer between 0 and 9 representing the classes with the following mapping:\n  | Label | Description |\n  | --- | --- |\n  | 0 | T-shirt/top |\n  | 1 | Trouser |\n  | 2 | Pullover |\n  | 3 | Dress |\n  | 4 | Coat |\n  | 5 | Sandal |\n  | 6 | Shirt |\n  | 7 | Sneaker |\n  | 8 | Bag |\n  | 9 | Ankle boot |\n\n### Data Splits\n\nThe data is split into training and test set. The training set contains 60,000 images and the test set 10,000 images.\n\n## Dataset Creation\n\n### Curation Rationale\n\n**From the arXiv paper:**\nThe original MNIST dataset contains a lot of handwritten digits. Members of the AI/ML/Data Science community love this dataset and use it as a benchmark to validate their algorithms. In fact, MNIST is often the first dataset researchers try. \"If it doesn't work on MNIST, it won't work at all\", they said. \"Well, if it does work on MNIST, it may still fail on others.\"\n\nHere are some good reasons:\n\n- MNIST is too easy. Convolutional nets can achieve 99.7% on MNIST. Classic machine learning algorithms can also achieve 97% easily. Check out our side-by-side benchmark for Fashion-MNIST vs. MNIST, and read \"Most pairs of MNIST digits can be distinguished pretty well by just one pixel.\"\n- MNIST is overused. In this April 2017 Twitter thread, Google Brain research scientist and deep learning expert Ian Goodfellow calls for people to move away from MNIST.\n- MNIST can not represent modern CV tasks, as noted in this April 2017 Twitter thread, deep learning expert/Keras author François Chollet.\n\n### Source Data\n\n#### Initial Data Collection and Normalization\n\n**From the arXiv paper:**\nFashion-MNIST is based on the assortment on Zalando’s website. Every fashion product on Zalando has a set of pictures shot by professional photographers, demonstrating different aspects of the product, i.e. front and back looks, details, looks with model and in an outfit. The original picture has a light-gray background (hexadecimal color: #fdfdfd) and stored in 762 × 1000 JPEG format. For efficiently serving different frontend components, the original picture is resampled with multiple resolutions, e.g. large, medium, small, thumbnail and tiny.\n\nWe use the front look thumbnail images of 70,000 unique products to build Fashion-MNIST. Those products come from different gender groups: men, women, kids and neutral. In particular, whitecolor products are not included in the dataset as they have low contrast to the background. The thumbnails (51 × 73) are then fed into the following conversion pipeline:\n\n1. Converting the input to a PNG image.\n2. Trimming any edges that are close to the color of the corner pixels. The “closeness” is defined by the distance within 5% of the maximum possible intensity in RGB space.\n3. Resizing the longest edge of the image to 28 by subsampling the pixels, i.e. some rows and columns are skipped over.\n4. Sharpening pixels using a Gaussian operator of the radius and standard deviation of 1.0, with increasing effect near outlines.\n5. Extending the shortest edge to 28 and put the image to the center of the canvas.\n6. Negating the intensities of the image.\n7. Converting the image to 8-bit grayscale pixels.\n\n#### Who are the source language producers?\n\n**From the arXiv paper:**\nEvery fashion product on Zalando has a set of pictures shot by professional photographers, demonstrating different aspects of the product, i.e. front and back looks, details, looks with model and in an outfit.\n\n### Annotations\n\n#### Annotation process\n\n**From the arXiv paper:**\nFor the class labels, they use the silhouette code of the product. The silhouette code is manually labeled by the in-house fashion experts and reviewed by a separate team at Zalando. Each product Zalando is the Europe’s largest online fashion platform. Each product contains only one silhouette code.\n\n#### Who are the annotators?\n\n**From the arXiv paper:**\nThe silhouette code is manually labeled by the in-house fashion experts and reviewed by a separate team at Zalando.\n\n### Personal and Sensitive Information\n\n[More Information Needed]\n\n## Considerations for Using the Data\n\n### Social Impact of Dataset\n\n[More Information Needed]\n\n### Discussion of Biases\n\n[More Information Needed]\n\n### Other Known Limitations\n\n[More Information Needed]\n\n## Additional Information\n\n### Dataset Curators\n\nHan Xiao and Kashif Rasul and Roland Vollgraf\n\n### Licensing Information\n\nMIT Licence\n\n### Citation Information\n\n```\n@article{DBLP:journals/corr/abs-1708-07747,\n  author    = {Han Xiao and\n               Kashif Rasul and\n               Roland Vollgraf},\n  title     = {Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning\n               Algorithms},\n  journal   = {CoRR},\n  volume    = {abs/1708.07747},\n  year      = {2017},\n  url       = {http://arxiv.org/abs/1708.07747},\n  archivePrefix = {arXiv},\n  eprint    = {1708.07747},\n  timestamp = {Mon, 13 Aug 2018 16:47:27 +0200},\n  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1708-07747},\n  bibsource = {dblp computer science bibliography, https://dblp.org}\n}\n```\n\n### Contributions\n\nThanks to [@gchhablani](https://github.com/gchablani) for adding this dataset.",
+              "extracted_code": ""
+            }
+          ]
+        }
       }
     },
     "experiment_runs": [
