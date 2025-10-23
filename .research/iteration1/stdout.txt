@@ -23,3 +23,9 @@
 [1;34mwandb[0m: You can sync this run to the cloud by running:
 [1;34mwandb[0m: [1mwandb sync /home/toma/t-80-8-a/_work/airas-20251023-035154-matsuzawa/airas-20251023-035154-matsuzawa/.research/iteration1/proposed-Two-Layer-MLP-1.2M-Fashion-MNIST/wandb/offline-run-20251023_043450-proposed-Two-Layer-MLP-1.2M-Fashion-MNIST[0m
 [1;34mwandb[0m: Find logs at: [1;35m.research/iteration1/proposed-Two-Layer-MLP-1.2M-Fashion-MNIST/wandb/offline-run-20251023_043450-proposed-Two-Layer-MLP-1.2M-Fashion-MNIST/logs[0m
+=== [UV SYNC] Start at Thu Oct 23 04:39:05 AM UTC 2025 ===
+=== [UV SYNC] Finished successfully at Thu Oct 23 04:39:10 AM UTC 2025 ===
+=== [FULL EXPERIMENT] Start for proposed-Two-Layer-MLP-1.2M-Fashion-MNIST at Thu Oct 23 04:39:10 AM UTC 2025 ===
+[main] Launching: /home/toma/t-80-8-a/_work/airas-20251023-035154-matsuzawa/airas-20251023-035154-matsuzawa/.venv/bin/python3 -u -m src.train run=proposed-Two-Layer-MLP-1.2M-Fashion-MNIST results_dir=.research/iteration1 wandb.mode=online
+[WandB] Authentication failed, falling back to offline mode
+=== [FULL EXPERIMENT] PASSED for proposed-Two-Layer-MLP-1.2M-Fashion-MNIST at Thu Oct 23 05:15:55 AM UTC 2025 ===
