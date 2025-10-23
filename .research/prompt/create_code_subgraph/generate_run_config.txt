@@ -1,0 +1,114 @@
+
+LLM Name: o3-2025-04-16
+Input:
+You are an AI research assistant tasked with generating Hydra configuration files for experiment runs.
+
+# Task
+Generate individual YAML configuration files for each experiment run. These configs will be used by Hydra to configure specific experimental variations.
+
+# Input Information
+
+## Research Method
+{
+    "Open Problems": "In BOIL, the acquisition score is obtained by dividing Expected-Improvement (EI) by an estimated cost coming from a simple linear regression.  However, EI is computed only from the GP predictive mean; it completely ignores the predictive variance of the final performance that the GP supplies.  As a consequence BOIL often proposes configurations whose *expected* gain is large but whose *uncertainty* is also large, leading to wasted wall-clock time on unstable or highly noisy runs.  A very small change that explicitly trades off improvement against predictive risk can reduce these wasted evaluations without touching the GP model, the curve-compression, or the selective data-augmentation machinery.",
+    "Methods": "Stability-Aware Cost-Efficient BOIL (S-BOIL)\nMinimal change: multiply the utility part of BOIL’s cost-aware acquisition by an exponential penalty that depends on the GP’s predictive variance σ²(x,t) at the candidate (x,t):\n\n    Utility_s = EI(x,t) * exp(-β · σ²(x,t))\n    Acquisition  =  log(Utility_s)  –  log(EstimatedCost+0.1)\n\nwhere β≥0 is a single tunable constant (β≈1 works well).  Intuition: for equal EI, prefer points the GP is certain about; for equal variance, recover the original BOIL rule.  Because σ² is already returned by the GP, the only code change is three lines in the acquisition function.  No retraining or extra hyper-parameters are introduced apart from β.",
+    "Experimental Setup": "Base method: original BOIL implementation.\nProposed: S-BOIL (β ∈ {0.5,1}).\nTask: tune two hyper-parameters (learning-rate, hidden-units) and the training-iteration budget for an MLP on the Fashion-MNIST 10-class task (using PyTorch).  Each BO run is allowed 30 real evaluations; wall-clock time is logged.\nMetrics:\n1. Best validation accuracy reached vs. number of real evaluations.\n2. Total wall-clock time until a target accuracy (80%) is hit.\nProtocol: 10 independent seeds for each method.  Same initial random design (3 points).",
+    "Experimental Code": "# --- patch to BOIL: Stability penalty ------------------------------------\n# in utility_cost_evaluation_single() *replace* the EI computation line\n# original: utility = acq_func.acq_kind(x,gp=self.gp)\n# new lines:\nmean, var = self.gp.predict(x.reshape(1,-1), return_var=True)\nei_val  = acq_func.ei(mean, var, acq_func.best_y)   # unchanged helper\nutility = ei_val * np.exp(-beta * var)              # <- stability term\n# everything else stays the same\n# ----------------------------------------------------------\n\n# Minimal runnable demo (requires original BOIL code in path)\nimport torch, torchvision, torch.nn as nn, torch.optim as optim\nfrom boil import BOIL        # assume original class name\n\nbeta = 1.0  # stability weight\nbo = BOIL(func=mlp_runner, SearchSpace={\"lr\":(1e-4,1e-1),\n                                        \"units\":(64,512),\n                                        \"T\":(1,15)})\nbo.beta = beta               # pass to acquisition helper\nbo.init(n_init_points=3)\nfor _ in range(27):          # 30 evaluations total\n    bo.suggest_nextpoint()\nprint(\"Best acc =\", bo.Y_original.max())",
+    "Expected Result": "Across 10 seeds S-BOIL is expected to reach 80% validation accuracy in ~15% less wall-clock time and 2 fewer function evaluations on average compared with BOIL.  The area-under-curve of best-seen accuracy vs. evaluations should also improve by ≈5–7%.",
+    "Expected Conclusion": "A tiny, one-line modification that penalizes predictive variance lets BOIL avoid expensive yet uncertain configurations, giving faster convergence at virtually no additional computational cost or implementation complexity.  This demonstrates that explicitly accounting for GP uncertainty inside the acquisition utility—beyond its usual role in EI—is a simple but powerful way to improve efficiency in iterative hyperparameter optimization."
+}
+
+## Experimental Design
+{'experiment_summary': 'The experiment aims to verify that the Stability-Aware Cost-Efficient BOIL (S-BOIL) acquisition rule accelerates hyper-parameter tuning compared with the original BOIL.  We run black-box optimisation on a two-layer MLP (≈1.2 M parameters) that is trained on Fashion-MNIST.  The optimiser must choose three configuration variables—learning-rate, hidden-units, and training-iteration budget—over 30 real training runs.  For each of 10 random seeds we execute (1) vanilla BOIL and (2) S-BOIL with a variance-penalised utility EI·exp(−βσ²).  β is treated as a small discrete hyper-parameter {0.5,1}.  All other code, GP surrogate, cost model, and initial design remain identical.  Metrics recorded at every function evaluation are: best-seen validation accuracy, wall-clock time, and the area-under-curve (AUC) of accuracy versus evaluations.  The primary comparisons are (i) mean evaluations and time to reach 80 % accuracy and (ii) mean AUAC across seeds.  The whole study fits comfortably on one A100 GPU, but eight are available if parallel seeds are desired.', 'evaluation_metrics': ['Validation Accuracy', 'Wall-clock Time to Target', 'Area Under Accuracy Curve'], 'proposed_method': 'Stability-Aware Cost-Efficient BOIL (S-BOIL)\nObjective: Reduce wasted evaluations on hyper-parameter configurations that have high expected improvement (EI) but also high predictive uncertainty.\nTheory: Original BOIL ranks candidates by log(EI)–log(cost).  S-BOIL adds a variance penalty, multiplying EI by exp(−βσ²) where σ² is the GP predictive variance and β≥0 controls strength.  This keeps the desirable cost-aware property while explicitly favouring stable (low-variance) points.\nAlgorithmic steps per iteration:\n1. Fit Gaussian-process surrogate to observed (configuration→performance) data.\n2. For each candidate (x,t) produced by BOIL’s search heuristics compute mean μ and variance σ².\n3. Compute utility_s = EI(μ,σ²)·exp(−βσ²).\n4. Acquisition = log(utility_s) – log(EstimatedCost+0.1).\n5. Return the candidate with maximal Acquisition; evaluate the true objective; append the result; repeat.\nImplementation: Requires only ~3 new lines inside BOIL’s acquisition function.  β is exposed as a user argument.  No retraining, extra models, or heavy computation is introduced.', 'comparative_methods': ['BOIL'], 'models_to_use': ['Two-Layer-MLP-1.2M'], 'datasets_to_use': ['Fashion-MNIST'], 'hyperparameters_to_search': {'learning_rate': '1e-4-1e-1', 'hidden_units': '64-512', 'training_iteration_budget': '1-15', 'beta': '0.5,1'}, 'external_resources': {'hugging_face': {'models': [], 'datasets': [{'id': 'zalando-datasets/fashion_mnist', 'author': 'zalando-datasets', 'sha': '531be5e2ccc9dba0c201ad3ae567a4f3d16ecdd2', 'created_at': datetime.datetime(2022, 3, 2, 23, 29, 22, tzinfo=TzInfo(UTC)), 'last_modified': datetime.datetime(2024, 8, 8, 6, 10, 25, tzinfo=TzInfo(UTC)), 'private': False, 'gated': False, 'disabled': False, 'downloads': 10367, 'likes': 63, 'siblings': [{'rfilename': '.gitattributes', 'size': None, 'blob_id': None, 'lfs': None}, {'rfilename': 'README.md', 'size': None, 'blob_id': None, 'lfs': None}, {'rfilename': 'fashion_mnist/test-00000-of-00001.parquet', 'size': None, 'blob_id': None, 'lfs': None}, {'rfilename': 'fashion_mnist/train-00000-of-00001.parquet', 'size': None, 'blob_id': None, 'lfs': None}], 'card_data': {'license': ['mit'], 'language': ['en'], 'library_name': None, 'pipeline_tag': None, 'tags': [], 'datasets': [], 'model_type': None, 'base_model': None, 'task_categories': ['image-classification'], 'size_categories': ['10K<n<100K'], 'metrics': [], 'widget': []}, 'tags': ['task_categories:image-classification', 'task_ids:multi-class-image-classification', 'annotations_creators:expert-generated', 'language_creators:found', 'multilinguality:monolingual', 'source_datasets:original', 'language:en', 'license:mit', 'size_categories:10K<n<100K', 'format:parquet', 'modality:image', 'library:datasets', 'library:pandas', 'library:mlcroissant', 'library:polars', 'arxiv:1708.07747', 'region:us'], 'pipeline_tag': None, 'library_name': None, 'readme': '---\nannotations_creators:\n- expert-generated\nlanguage_creators:\n- found\nlanguage:\n- en\nlicense:\n- mit\nmultilinguality:\n- monolingual\nsize_categories:\n- 10K<n<100K\nsource_datasets:\n- original\ntask_categories:\n- image-classification\ntask_ids:\n- multi-class-image-classification\npaperswithcode_id: fashion-mnist\npretty_name: FashionMNIST\ndataset_info:\n  config_name: fashion_mnist\n  features:\n  - name: image\n    dtype: image\n  - name: label\n    dtype:\n      class_label:\n        names:\n          \'0\': T - shirt / top\n          \'1\': Trouser\n          \'2\': Pullover\n          \'3\': Dress\n          \'4\': Coat\n          \'5\': Sandal\n          \'6\': Shirt\n          \'7\': Sneaker\n          \'8\': Bag\n          \'9\': Ankle boot\n  splits:\n  - name: train\n    num_bytes: 31049107.0\n    num_examples: 60000\n  - name: test\n    num_bytes: 5192560.0\n    num_examples: 10000\n  download_size: 36106894\n  dataset_size: 36241667.0\nconfigs:\n- config_name: fashion_mnist\n  data_files:\n  - split: train\n    path: fashion_mnist/train-*\n  - split: test\n    path: fashion_mnist/test-*\n  default: true\n---\n\n# Dataset Card for FashionMNIST\n\n## Table of Contents\n- [Dataset Description](#dataset-description)\n  - [Dataset Summary](#dataset-summary)\n  - [Supported Tasks and Leaderboards](#supported-tasks-and-leaderboards)\n  - [Languages](#languages)\n- [Dataset Structure](#dataset-structure)\n  - [Data Instances](#data-instances)\n  - [Data Fields](#data-fields)\n  - [Data Splits](#data-splits)\n- [Dataset Creation](#dataset-creation)\n  - [Curation Rationale](#curation-rationale)\n  - [Source Data](#source-data)\n  - [Annotations](#annotations)\n  - [Personal and Sensitive Information](#personal-and-sensitive-information)\n- [Considerations for Using the Data](#considerations-for-using-the-data)\n  - [Social Impact of Dataset](#social-impact-of-dataset)\n  - [Discussion of Biases](#discussion-of-biases)\n  - [Other Known Limitations](#other-known-limitations)\n- [Additional Information](#additional-information)\n  - [Dataset Curators](#dataset-curators)\n  - [Licensing Information](#licensing-information)\n  - [Citation Information](#citation-information)\n  - [Contributions](#contributions)\n\n## Dataset Description\n\n- **Homepage:** [GitHub](https://github.com/zalandoresearch/fashion-mnist)\n- **Repository:** [GitHub](https://github.com/zalandoresearch/fashion-mnist)\n- **Paper:** [arXiv](https://arxiv.org/pdf/1708.07747.pdf)\n- **Leaderboard:**\n- **Point of Contact:**\n\n### Dataset Summary\n\nFashion-MNIST is a dataset of Zalando\'s article images—consisting of a training set of 60,000 examples and a test set of 10,000 examples. Each example is a 28x28 grayscale image, associated with a label from 10 classes. We intend Fashion-MNIST to serve as a direct drop-in replacement for the original MNIST dataset for benchmarking machine learning algorithms. It shares the same image size and structure of training and testing splits.\n\n### Supported Tasks and Leaderboards\n\n- `image-classification`: The goal of this task is to classify a given image of Zalando\'s article into one of 10 classes. The leaderboard is available [here](https://paperswithcode.com/sota/image-classification-on-fashion-mnist).\n\n### Languages\n\n[More Information Needed]\n\n## Dataset Structure\n\n### Data Instances\n\nA data point comprises an image and its label.\n\n```\n{\n  \'image\': <PIL.PngImagePlugin.PngImageFile image mode=L size=28x28 at 0x27601169DD8>,\n  \'label\': 9\n}\n```\n\n### Data Fields\n\n- `image`: A `PIL.Image.Image` object containing the 28x28 image. Note that when accessing the image column: `dataset[0]["image"]` the image file is automatically decoded. Decoding of a large number of image files might take a significant amount of time. Thus it is important to first query the sample index before the `"image"` column, *i.e.* `dataset[0]["image"]` should **always** be preferred over `dataset["image"][0]`.\n- `label`: an integer between 0 and 9 representing the classes with the following mapping:\n  | Label | Description |\n  | --- | --- |\n  | 0 | T-shirt/top |\n  | 1 | Trouser |\n  | 2 | Pullover |\n  | 3 | Dress |\n  | 4 | Coat |\n  | 5 | Sandal |\n  | 6 | Shirt |\n  | 7 | Sneaker |\n  | 8 | Bag |\n  | 9 | Ankle boot |\n\n### Data Splits\n\nThe data is split into training and test set. The training set contains 60,000 images and the test set 10,000 images.\n\n## Dataset Creation\n\n### Curation Rationale\n\n**From the arXiv paper:**\nThe original MNIST dataset contains a lot of handwritten digits. Members of the AI/ML/Data Science community love this dataset and use it as a benchmark to validate their algorithms. In fact, MNIST is often the first dataset researchers try. "If it doesn\'t work on MNIST, it won\'t work at all", they said. "Well, if it does work on MNIST, it may still fail on others."\n\nHere are some good reasons:\n\n- MNIST is too easy. Convolutional nets can achieve 99.7% on MNIST. Classic machine learning algorithms can also achieve 97% easily. Check out our side-by-side benchmark for Fashion-MNIST vs. MNIST, and read "Most pairs of MNIST digits can be distinguished pretty well by just one pixel."\n- MNIST is overused. In this April 2017 Twitter thread, Google Brain research scientist and deep learning expert Ian Goodfellow calls for people to move away from MNIST.\n- MNIST can not represent modern CV tasks, as noted in this April 2017 Twitter thread, deep learning expert/Keras author François Chollet.\n\n### Source Data\n\n#### Initial Data Collection and Normalization\n\n**From the arXiv paper:**\nFashion-MNIST is based on the assortment on Zalando’s website. Every fashion product on Zalando has a set of pictures shot by professional photographers, demonstrating different aspects of the product, i.e. front and back looks, details, looks with model and in an outfit. The original picture has a light-gray background (hexadecimal color: #fdfdfd) and stored in 762 × 1000 JPEG format. For efficiently serving different frontend components, the original picture is resampled with multiple resolutions, e.g. large, medium, small, thumbnail and tiny.\n\nWe use the front look thumbnail images of 70,000 unique products to build Fashion-MNIST. Those products come from different gender groups: men, women, kids and neutral. In particular, whitecolor products are not included in the dataset as they have low contrast to the background. The thumbnails (51 × 73) are then fed into the following conversion pipeline:\n\n1. Converting the input to a PNG image.\n2. Trimming any edges that are close to the color of the corner pixels. The “closeness” is defined by the distance within 5% of the maximum possible intensity in RGB space.\n3. Resizing the longest edge of the image to 28 by subsampling the pixels, i.e. some rows and columns are skipped over.\n4. Sharpening pixels using a Gaussian operator of the radius and standard deviation of 1.0, with increasing effect near outlines.\n5. Extending the shortest edge to 28 and put the image to the center of the canvas.\n6. Negating the intensities of the image.\n7. Converting the image to 8-bit grayscale pixels.\n\n#### Who are the source language producers?\n\n**From the arXiv paper:**\nEvery fashion product on Zalando has a set of pictures shot by professional photographers, demonstrating different aspects of the product, i.e. front and back looks, details, looks with model and in an outfit.\n\n### Annotations\n\n#### Annotation process\n\n**From the arXiv paper:**\nFor the class labels, they use the silhouette code of the product. The silhouette code is manually labeled by the in-house fashion experts and reviewed by a separate team at Zalando. Each product Zalando is the Europe’s largest online fashion platform. Each product contains only one silhouette code.\n\n#### Who are the annotators?\n\n**From the arXiv paper:**\nThe silhouette code is manually labeled by the in-house fashion experts and reviewed by a separate team at Zalando.\n\n### Personal and Sensitive Information\n\n[More Information Needed]\n\n## Considerations for Using the Data\n\n### Social Impact of Dataset\n\n[More Information Needed]\n\n### Discussion of Biases\n\n[More Information Needed]\n\n### Other Known Limitations\n\n[More Information Needed]\n\n## Additional Information\n\n### Dataset Curators\n\nHan Xiao and Kashif Rasul and Roland Vollgraf\n\n### Licensing Information\n\nMIT Licence\n\n### Citation Information\n\n```\n@article{DBLP:journals/corr/abs-1708-07747,\n  author    = {Han Xiao and\n               Kashif Rasul and\n               Roland Vollgraf},\n  title     = {Fashion-MNIST: a Novel Image Dataset for Benchmarking Machine Learning\n               Algorithms},\n  journal   = {CoRR},\n  volume    = {abs/1708.07747},\n  year      = {2017},\n  url       = {http://arxiv.org/abs/1708.07747},\n  archivePrefix = {arXiv},\n  eprint    = {1708.07747},\n  timestamp = {Mon, 13 Aug 2018 16:47:27 +0200},\n  biburl    = {https://dblp.org/rec/bib/journals/corr/abs-1708-07747},\n  bibsource = {dblp computer science bibliography, https://dblp.org}\n}\n```\n\n### Contributions\n\nThanks to [@gchhablani](https://github.com/gchablani) for adding this dataset.', 'model_index': None, 'widget_data': None, 'config': None, 'transformers_info': None, 'spaces': None, 'safetensors': None, 'used_storage': None, 'extracted_code': ''}]}}, 'experiment_code': None}
+
+## Experiment Runs
+
+- Run ID: proposed-Two-Layer-MLP-1.2M-Fashion-MNIST
+  Method: proposed
+  Model: Two-Layer-MLP-1.2M
+  Dataset: Fashion-MNIST
+
+- Run ID: comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST
+  Method: comparative-1
+  Model: Two-Layer-MLP-1.2M
+  Dataset: Fashion-MNIST
+
+
+# Requirements
+
+## Configuration Structure
+Each run configuration should include:
+- run_id: Unique identifier for this run
+- method: The method name (baseline, proposed, ablation, etc.)
+- model: Model-specific parameters (name, architecture details, hyperparameters)
+- dataset: Dataset-specific parameters (name, preprocessing settings, split ratios)
+- training: Training hyperparameters (learning rate, batch size, epochs, optimizer settings)
+- optuna: Hyperparameter search space definition for Optuna optimization
+  - Define search spaces for key hyperparameters using Optuna's suggest methods
+  - Example: learning_rate: [1e-5, 1e-3], batch_size: [16, 32, 64]
+- Any other experiment-specific settings
+
+## Format
+- Generate one YAML configuration per experiment run
+- Ensure valid YAML syntax
+- Use meaningful parameter values based on the research method and experimental design
+
+## Example Configuration
+```yaml
+run_id: baseline_bert_imdb
+method: baseline
+model:
+  name: bert-base-uncased
+  hidden_size: 768
+  num_layers: 12
+dataset:
+  name: imdb
+  max_length: 512
+  batch_size: 32
+training:
+  learning_rate: 2e-5
+  epochs: 3
+  optimizer: adamw
+  warmup_steps: 500
+optuna:
+  n_trials: 20
+  search_space:
+    learning_rate:
+      type: loguniform
+      low: 1e-5
+      high: 1e-3
+    batch_size:
+      type: categorical
+      choices: [16, 32, 64]
+```
+
+# Experimental Environment
+NVIDIA A100×8
+VRAM：80GB×8
+RAM：2048 GB
+
+# Instructions
+1. Generate one YAML configuration for each experiment run listed above
+2. Ensure configurations reflect the differences between baseline, proposed, and ablation methods
+3. Use appropriate hyperparameters based on the experimental design
+4. Include Optuna search space if hyperparameter optimization is beneficial for the experiment
+5. For Optuna search spaces, use appropriate distribution types:
+   - loguniform: For learning rates, regularization parameters
+   - uniform: For dropout rates, weight decay
+   - int: For hidden dimensions, number of layers
+   - categorical: For discrete choices like batch size, optimizer type
+
+Generate the configurations now:
+Output:
+{
+  "run_configs": [
+    {
+      "run_id": "proposed-Two-Layer-MLP-1.2M-Fashion-MNIST",
+      "run_config_yaml": "run_id: proposed-Two-Layer-MLP-1.2M-Fashion-MNIST\nmethod: S-BOIL\nmodel:\n  name: Two-Layer-MLP-1.2M\n  input_dim: 784\n  hidden_units: 256        # default, tuned via Optuna\n  output_classes: 10\n  activation: relu\n  weight_init: kaiming_uniform\ndataset:\n  name: Fashion-MNIST\n  transforms:\n    - ToTensor\n    - Normalize(mean=0.5, std=0.5)\n  validation_split: 0.1\ntraining:\n  batch_size: 128\n  optimizer: adam\n  loss_fn: cross_entropy\n  device: cuda\n  default_learning_rate: 1e-3\n  epochs_per_iteration: 5   # total epochs = budget * 5\n  num_workers: 8\n  pin_memory: true\nexperiment:\n  n_init_points: 3\n  total_evaluations: 30\n  acquisition: S-BOIL       # log(EI*exp(-βσ²)) − log(cost)\n  beta_default: 1.0\noptuna:\n  n_trials: 30\n  direction: maximize\n  search_space:\n    learning_rate:\n      type: loguniform\n      low: 1e-4\n      high: 1e-1\n    hidden_units:\n      type: int\n      low: 64\n      high: 512\n    training_iteration_budget:\n      type: int\n      low: 1\n      high: 15\n    beta:\n      type: categorical\n      choices: [0.5, 1.0]\n"
+    },
+    {
+      "run_id": "comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST",
+      "run_config_yaml": "run_id: comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST\nmethod: BOIL\nmodel:\n  name: Two-Layer-MLP-1.2M\n  input_dim: 784\n  hidden_units: 256        # default, tuned via Optuna\n  output_classes: 10\n  activation: relu\n  weight_init: kaiming_uniform\ndataset:\n  name: Fashion-MNIST\n  transforms:\n    - ToTensor\n    - Normalize(mean=0.5, std=0.5)\n  validation_split: 0.1\ntraining:\n  batch_size: 128\n  optimizer: adam\n  loss_fn: cross_entropy\n  device: cuda\n  default_learning_rate: 1e-3\n  epochs_per_iteration: 5\n  num_workers: 8\n  pin_memory: true\nexperiment:\n  n_init_points: 3\n  total_evaluations: 30\n  acquisition: BOIL         # log(EI) − log(cost)\noptuna:\n  n_trials: 30\n  direction: maximize\n  search_space:\n    learning_rate:\n      type: loguniform\n      low: 1e-4\n      high: 1e-1\n    hidden_units:\n      type: int\n      low: 64\n      high: 512\n    training_iteration_budget:\n      type: int\n      low: 1\n      high: 15\n"
+    }
+  ]
+}
