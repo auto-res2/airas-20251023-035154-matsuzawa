@@ -16,7 +16,16 @@ import hydra
 import numpy as np
 import torch
 import wandb
-from botorch.fit import fit_gpytorch_model
+try:
+    from botorch.fit import fit_gpytorch_mll as fit_gpytorch_model
+except (ImportError, AttributeError):
+    try:
+        from botorch.fit import fit_gpytorch_model
+    except (ImportError, AttributeError):
+        try:
+            from botorch.optim.fit import fit_gpytorch_mll_torch as fit_gpytorch_model
+        except (ImportError, AttributeError):
+            from botorch.optim import fit_gpytorch_mll as fit_gpytorch_model
 from botorch.models import SingleTaskGP
 from gpytorch.mlls import ExactMarginalLogLikelihood
 from omegaconf import DictConfig, OmegaConf
