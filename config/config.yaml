@@ -1,0 +1,68 @@
+# config/config.yaml – global Hydra configuration
+# All *experiment-agnostic* defaults live in here.  The *actual* experimental
+# parameters are provided via the ``run`` config-group (see config/run/*.yaml).
+
+defaults:
+  - _self_
+  - run: ??          # must be specified on the command-line (run id)
+
+###############################################################################
+#                               WandB                                          #
+###############################################################################
+wandb:
+  entity: gengaru617-personal
+  project: 251023-test
+  mode: online            # automatically set to "disabled" in trial_mode
+
+###############################################################################
+#                          training + data defaults                            #
+###############################################################################
+#   These act purely as *fallbacks* – they will be overwritten by each run's
+#   dedicated YAML (config/run/<run-id>.yaml).
+###############################################################################
+model:
+  name: two-layer-mlp-1.2m
+  input_dim: 784
+  hidden_units: 256
+  output_classes: 10
+  activation: relu
+  weight_init: kaiming_uniform
+
+dataset:
+  name: fashion-mnist
+  transforms:
+    - ToTensor
+    - Normalize(mean=0.5, std=0.5)
+  validation_split: 0.1
+
+training:
+  batch_size: 128
+  optimizer: adam
+  device: cuda
+  learning_rate: 1e-3
+  epochs_per_iteration: 5
+  num_workers: 4
+  pin_memory: true
+
+###############################################################################
+#                     BOIL / S-BOIL default meta-params                       #
+###############################################################################
+experiment:
+  n_init_points: 3
+  total_evaluations: 30
+  acquisition: boil
+  beta_default: 1.0
+
+optuna:
+  n_trials: 30
+  search_space:
+    learning_rate: {type: loguniform, low: 1e-4, high: 1e-1}
+    hidden_units:   {type: int,        low: 64,  high: 512}
+    training_iteration_budget: {type: int, low: 1, high: 15}
+    beta: {type: categorical, choices: [0.5, 1.0]}
+
+###############################################################################
+#                     misc top-level knobs (CLI convenience)                  #
+###############################################################################
+results_dir: outputs
+trial_mode: false

@@ -1,0 +1,44 @@
+run_id: comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST
+method: BOIL
+model:
+  name: Two-Layer-MLP-1.2M
+  input_dim: 784
+  hidden_units: 256        # default, tuned via Optuna
+  output_classes: 10
+  activation: relu
+  weight_init: kaiming_uniform
+dataset:
+  name: Fashion-MNIST
+  transforms:
+    - ToTensor
+    - Normalize(mean=0.5, std=0.5)
+  validation_split: 0.1
+training:
+  batch_size: 128
+  optimizer: adam
+  loss_fn: cross_entropy
+  device: cuda
+  default_learning_rate: 1e-3
+  epochs_per_iteration: 5
+  num_workers: 8
+  pin_memory: true
+experiment:
+  n_init_points: 3
+  total_evaluations: 30
+  acquisition: BOIL         # log(EI) − log(cost)
+optuna:
+  n_trials: 30
+  direction: maximize
+  search_space:
+    learning_rate:
+      type: loguniform
+      low: 1e-4
+      high: 1e-1
+    hidden_units:
+      type: int
+      low: 64
+      high: 512
+    training_iteration_budget:
+      type: int
+      low: 1
+      high: 15
