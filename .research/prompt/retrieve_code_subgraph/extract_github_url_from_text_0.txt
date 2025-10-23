@@ -1,0 +1,18 @@
+
+LLM Name: gemini-2.5-flash
+Input:
+# Task
+You carefully read the contents of the “Paper Outline” and select one GitHub link from the “GitHub URLs List” that you think is most relevant to the contents.
+# Constraints
+- Output the index number corresponding to the selected GitHub URL.
+- Be sure to select only one GitHub URL.
+- If there is no related GitHub link, output None.
+# Paper Outline
+BOIL models the cost-sensitive black-box function, representing hyperparameter performance over iterations, as a Gaussian Process (GP) with a product kernel. It selects the next hyperparameter and iteration using a cost-aware acquisition function (a modified Expected Improvement criterion divided by an estimated linear cost). A key innovation is compressing the raw training curve into a single numeric score using a Sigmoid preference function, whose growth and middle-point parameters are learned by maximizing the GP's log marginal likelihood. To efficiently leverage intermediate training data without causing GP ill-conditioning, BOIL employs a selective data augmentation technique, adding points from the observed training curve that maximize GP predictive uncertainty, while adaptively limiting the number of added points based on the covariance matrix's condition number.
+
+# GitHub URLs List
+['https://github.com/ntienvu/BOIL']
+Output:
+{
+    "index": 0
+}
