@@ -14,3 +14,10 @@
 === [UV SYNC] Finished successfully at Thu Oct 23 04:32:00 AM UTC 2025 ===
 === [FULL EXPERIMENT] Start for comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST at Thu Oct 23 04:32:00 AM UTC 2025 ===
 [main] Launching: /home/toma/t-80-8-b-03/_work/airas-20251023-035154-matsuzawa/airas-20251023-035154-matsuzawa/.venv/bin/python3 -u -m src.train run=comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST results_dir=.research/iteration1 wandb.mode=online
+=== [UV SYNC] Start at Thu Oct 23 04:34:23 AM UTC 2025 ===
+=== [UV SYNC] Finished successfully at Thu Oct 23 04:34:28 AM UTC 2025 ===
+=== [FULL EXPERIMENT] Start for comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST at Thu Oct 23 04:34:28 AM UTC 2025 ===
+[main] Launching: /home/toma/t-80-8-b-04/_work/airas-20251023-035154-matsuzawa/airas-20251023-035154-matsuzawa/.venv/bin/python3 -u -m src.train run=comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST results_dir=.research/iteration1 wandb.mode=online
+[WandB] Authentication failed: api_key not configured (no-tty). call wandb.login(key=[your_api_key])
+[WandB] Falling back to disabled mode
+=== [FULL EXPERIMENT] PASSED for comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST at Thu Oct 23 05:11:12 AM UTC 2025 ===
