@@ -225,7 +225,7 @@ def main(cfg: DictConfig) -> None:  # noqa: C901 – function is inevitably long
         resume="allow",
         config=OmegaConf.to_container(cfg, resolve=True),
     )
-    if wb_run.mode != "disabled":
+    if cfg.wandb.mode != "disabled":
         print(f"[WandB] run URL: {wb_run.url}")
 
     device = torch.device(cfg.training.device if torch.cuda.is_available() else "cpu")
