@@ -1,0 +1,258 @@
+
+LLM Name: o3-2025-04-16
+Input:
+You are an AI code reviewer validating production-ready experiment code for research papers.
+
+Analyze the provided experiment code and determine if it meets all requirements for immediate execution in research experiments.
+
+# Instructions
+
+## Core Validation Criteria
+Check if the generated experiment code meets ALL of the following requirements:
+
+1. **Complete Implementation**:
+   - Every component is fully functional, production-ready, publication-worthy code
+   - No "omitted for brevity", no "simplified version", no TODO, PLACEHOLDER, pass, or ...
+   - All functions and classes are completely implemented
+   - No truncated code sections or incomplete implementations
+
+2. **Hydra Integration**:
+   - Uses Hydra to manage all experiment configurations from `config/run/*.yaml` files
+   - All parameters are loaded from run configs dynamically
+   - Proper configuration structure with run_id, method, model, dataset, training, and optuna sections
+   - CLI interface matches:
+     * Training (normal): `uv run python -u -m src.main run={run_id} results_dir={path} wandb.mode=online`
+     * Training (trial): `uv run python -u -m src.main run={run_id} results_dir={path} trial_mode=true`
+     * Evaluation: `uv run python -m src.evaluate results_dir={path} run_ids='["run-1", "run-2", ...]'` (independent execution)
+   - When trial_mode=true, code must automatically set cfg.wandb.mode="disabled" internally
+
+3. **Complete Data Pipeline**:
+   - Full data loading and preprocessing implementation
+   - Dataset-specific preprocessing is properly implemented
+   - No placeholder dataset loading code
+   - Proper error handling for data operations
+   - Uses `.cache/` as the cache directory for all datasets and models
+
+4. **Model Implementation**:
+   - Complete model architectures for all methods (proposed and comparative methods)
+   - No placeholders (TODO, PLACEHOLDER, pass, or incomplete implementations)
+   - When External Resources specify HuggingFace models: properly use and customize them (acceptable to wrap AutoModel, add adapters, etc.)
+   - When no external models specified: implement architectures from scratch using PyTorch primitives
+   - Model-specific configurations correctly applied
+   - Proper PyTorch usage throughout
+
+5. **File Structure Compliance**:
+   - Contains EXACTLY these required files (and NO other files):
+     * `src/train.py`
+     * `src/evaluate.py`
+     * `src/preprocess.py`
+     * `src/model.py`
+     * `src/main.py`
+     * `pyproject.toml`
+     * `config/config.yaml`
+   - NO additional files (e.g., NO `src/__init__.py`, NO `setup.py`, NO other Python files)
+   - No missing files from the structure
+   - All functionality contained within specified files
+
+6. **WandB Integration**:
+   - train.py initializes WandB and logs ALL metrics comprehensively:
+     * Use `wandb.log()` at each training step/batch/epoch with ALL relevant time-series metrics
+     * Log as frequently as possible (per-batch or per-epoch) to capture complete training dynamics
+     * Use `wandb.summary["key"] = value` to save final/best metrics (best_val_acc, final_test_acc, best_epoch, etc.)
+   - When trial_mode=true, code must automatically set cfg.wandb.mode="disabled" before any WandB operations
+   - NO results.json or stdout JSON dumps in train.py
+   - config/config.yaml contains mandatory WandB settings (entity/project)
+   - `WANDB_API_KEY` environment variable is available for authentication
+
+7. **Configuration Files**:
+   - The generated code properly references config files via Hydra
+   - NOTE: config/run/{run_id}.yaml files are provided separately (not in ExperimentCode)
+   - All run configurations match the experiment_runs provided
+   - Optuna search spaces are properly defined if applicable
+
+8. **Evaluation Script Independence**:
+   - evaluate.py is executed independently via `uv run python -m src.evaluate results_dir={path} run_ids='["run-1", "run-2"]'`
+   - Accepts `run_ids` parameter as JSON string list (parse with `json.loads(args.run_ids)`)
+   - main.py DOES NOT call evaluate.py
+   - evaluate.py retrieves comprehensive data from WandB API:
+     * Use `wandb.Api()` to get run data: `run = api.run(f"{entity}/{project}/{run_id}")`
+     * Retrieve: `history = run.history()`, `summary = run.summary._json_dict`, `config = dict(run.config)`
+   - **STEP 1: Per-Run Processing** (for each run_id):
+     * Export comprehensive run-specific metrics to: `{results_dir}/{run_id}/metrics.json`
+     * Generate run-specific figures (learning curves, confusion matrices) to: `{results_dir}/{run_id}/`
+     * Each run should have its own subdirectory with its metrics and figures
+   - **STEP 2: Aggregated Analysis** (after processing all runs):
+     * Export aggregated metrics to: `{results_dir}/comparison/aggregated_metrics.json`
+     * Compute secondary/derived metrics (e.g., improvement rate: (proposed - baseline) / baseline)
+     * Generate comparison figures to: `{results_dir}/comparison/`
+     * Cross-run comparison charts (bar charts, box plots)
+     * Performance metrics tables
+     * Statistical significance tests
+   - Proper figure quality: legends, annotations, tight_layout
+   - Follows GLOBALLY UNIQUE naming convention to prevent collisions:
+     * Per-run figures: `{run_id}_{figure_topic}[_<condition>][_pairN].pdf` (e.g., `run-1-proposed-bert-glue_learning_curve.pdf`)
+     * Comparison figures: `comparison_{figure_topic}[_<condition>][_pairN].pdf` (e.g., `comparison_accuracy_bar_chart.pdf`)
+   - train.py and main.py generate NO figures
+   - evaluate.py cannot run in trial_mode (no WandB data available when WandB disabled)
+
+9. **Trial Mode Implementation**:
+   - trial_mode=true flag properly reduces computational load
+   - Training: epochs=1, batches limited to 1-2, Optuna disabled (n_trials=0), small evaluation subset
+   - Code must automatically set cfg.wandb.mode="disabled" when trial_mode=true (e.g., `if cfg.trial_mode: cfg.wandb.mode = "disabled"`)
+   - Purpose: Fast validation that code runs without errors
+
+## Output Format
+Respond with a JSON object containing:
+- `is_code_ready`: boolean - true if ALL criteria are met, false otherwise
+- `code_issue`: string - specific issues found if any criteria are not met, focusing on what needs to be fixed
+
+# Current Research Method
+{
+    "Open Problems": "In BOIL, the acquisition score is obtained by dividing Expected-Improvement (EI) by an estimated cost coming from a simple linear regression.  However, EI is computed only from the GP predictive mean; it completely ignores the predictive variance of the final performance that the GP supplies.  As a consequence BOIL often proposes configurations whose *expected* gain is large but whose *uncertainty* is also large, leading to wasted wall-clock time on unstable or highly noisy runs.  A very small change that explicitly trades off improvement against predictive risk can reduce these wasted evaluations without touching the GP model, the curve-compression, or the selective data-augmentation machinery.",
+    "Methods": "Stability-Aware Cost-Efficient BOIL (S-BOIL)\nMinimal change: multiply the utility part of BOIL’s cost-aware acquisition by an exponential penalty that depends on the GP’s predictive variance σ²(x,t) at the candidate (x,t):\n\n    Utility_s = EI(x,t) * exp(-β · σ²(x,t))\n    Acquisition  =  log(Utility_s)  –  log(EstimatedCost+0.1)\n\nwhere β≥0 is a single tunable constant (β≈1 works well).  Intuition: for equal EI, prefer points the GP is certain about; for equal variance, recover the original BOIL rule.  Because σ² is already returned by the GP, the only code change is three lines in the acquisition function.  No retraining or extra hyper-parameters are introduced apart from β.",
+    "Experimental Setup": "Base method: original BOIL implementation.\nProposed: S-BOIL (β ∈ {0.5,1}).\nTask: tune two hyper-parameters (learning-rate, hidden-units) and the training-iteration budget for an MLP on the Fashion-MNIST 10-class task (using PyTorch).  Each BO run is allowed 30 real evaluations; wall-clock time is logged.\nMetrics:\n1. Best validation accuracy reached vs. number of real evaluations.\n2. Total wall-clock time until a target accuracy (80%) is hit.\nProtocol: 10 independent seeds for each method.  Same initial random design (3 points).",
+    "Experimental Code": "# --- patch to BOIL: Stability penalty ------------------------------------\n# in utility_cost_evaluation_single() *replace* the EI computation line\n# original: utility = acq_func.acq_kind(x,gp=self.gp)\n# new lines:\nmean, var = self.gp.predict(x.reshape(1,-1), return_var=True)\nei_val  = acq_func.ei(mean, var, acq_func.best_y)   # unchanged helper\nutility = ei_val * np.exp(-beta * var)              # <- stability term\n# everything else stays the same\n# ----------------------------------------------------------\n\n# Minimal runnable demo (requires original BOIL code in path)\nimport torch, torchvision, torch.nn as nn, torch.optim as optim\nfrom boil import BOIL        # assume original class name\n\nbeta = 1.0  # stability weight\nbo = BOIL(func=mlp_runner, SearchSpace={\"lr\":(1e-4,1e-1),\n                                        \"units\":(64,512),\n                                        \"T\":(1,15)})\nbo.beta = beta               # pass to acquisition helper\nbo.init(n_init_points=3)\nfor _ in range(27):          # 30 evaluations total\n    bo.suggest_nextpoint()\nprint(\"Best acc =\", bo.Y_original.max())",
+    "Expected Result": "Across 10 seeds S-BOIL is expected to reach 80% validation accuracy in ~15% less wall-clock time and 2 fewer function evaluations on average compared with BOIL.  The area-under-curve of best-seen accuracy vs. evaluations should also improve by ≈5–7%.",
+    "Expected Conclusion": "A tiny, one-line modification that penalizes predictive variance lets BOIL avoid expensive yet uncertain configurations, giving faster convergence at virtually no additional computational cost or implementation complexity.  This demonstrates that explicitly accounting for GP uncertainty inside the acquisition utility—beyond its usual role in EI—is a simple but powerful way to improve efficiency in iterative hyperparameter optimization."
+}
+
+# Experimental Design
+- Strategy: The experiment aims to verify that the Stability-Aware Cost-Efficient BOIL (S-BOIL) acquisition rule accelerates hyper-parameter tuning compared with the original BOIL.  We run black-box optimisation on a two-layer MLP (≈1.2 M parameters) that is trained on Fashion-MNIST.  The optimiser must choose three configuration variables—learning-rate, hidden-units, and training-iteration budget—over 30 real training runs.  For each of 10 random seeds we execute (1) vanilla BOIL and (2) S-BOIL with a variance-penalised utility EI·exp(−βσ²).  β is treated as a small discrete hyper-parameter {0.5,1}.  All other code, GP surrogate, cost model, and initial design remain identical.  Metrics recorded at every function evaluation are: best-seen validation accuracy, wall-clock time, and the area-under-curve (AUC) of accuracy versus evaluations.  The primary comparisons are (i) mean evaluations and time to reach 80 % accuracy and (ii) mean AUAC across seeds.  The whole study fits comfortably on one A100 GPU, but eight are available if parallel seeds are desired.
+- Proposed Method: Stability-Aware Cost-Efficient BOIL (S-BOIL)
+Objective: Reduce wasted evaluations on hyper-parameter configurations that have high expected improvement (EI) but also high predictive uncertainty.
+Theory: Original BOIL ranks candidates by log(EI)–log(cost).  S-BOIL adds a variance penalty, multiplying EI by exp(−βσ²) where σ² is the GP predictive variance and β≥0 controls strength.  This keeps the desirable cost-aware property while explicitly favouring stable (low-variance) points.
+Algorithmic steps per iteration:
+1. Fit Gaussian-process surrogate to observed (configuration→performance) data.
+2. For each candidate (x,t) produced by BOIL’s search heuristics compute mean μ and variance σ².
+3. Compute utility_s = EI(μ,σ²)·exp(−βσ²).
+4. Acquisition = log(utility_s) – log(EstimatedCost+0.1).
+5. Return the candidate with maximal Acquisition; evaluate the true objective; append the result; repeat.
+Implementation: Requires only ~3 new lines inside BOIL’s acquisition function.  β is exposed as a user argument.  No retraining, extra models, or heavy computation is introduced.
+- Evaluation Metrics: ['Validation Accuracy', 'Wall-clock Time to Target', 'Area Under Accuracy Curve']
+
+# Experiment Runs
+
+- Run ID: proposed-Two-Layer-MLP-1.2M-Fashion-MNIST
+  Method: proposed
+  Model: Two-Layer-MLP-1.2M
+  Dataset: Fashion-MNIST
+  
+  Config Content:
+  ```yaml
+  run_id: proposed-Two-Layer-MLP-1.2M-Fashion-MNIST
+method: S-BOIL
+model:
+  name: Two-Layer-MLP-1.2M
+  input_dim: 784
+  hidden_units: 256        # default, tuned via Optuna
+  output_classes: 10
+  activation: relu
+  weight_init: kaiming_uniform
+dataset:
+  name: Fashion-MNIST
+  transforms:
+    - ToTensor
+    - Normalize(mean=0.5, std=0.5)
+  validation_split: 0.1
+training:
+  batch_size: 128
+  optimizer: adam
+  loss_fn: cross_entropy
+  device: cuda
+  default_learning_rate: 1e-3
+  epochs_per_iteration: 5   # total epochs = budget * 5
+  num_workers: 8
+  pin_memory: true
+experiment:
+  n_init_points: 3
+  total_evaluations: 30
+  acquisition: S-BOIL       # log(EI*exp(-βσ²)) − log(cost)
+  beta_default: 1.0
+optuna:
+  n_trials: 30
+  direction: maximize
+  search_space:
+    learning_rate:
+      type: loguniform
+      low: 1e-4
+      high: 1e-1
+    hidden_units:
+      type: int
+      low: 64
+      high: 512
+    training_iteration_budget:
+      type: int
+      low: 1
+      high: 15
+    beta:
+      type: categorical
+      choices: [0.5, 1.0]
+
+  ```
+  
+
+- Run ID: comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST
+  Method: comparative-1
+  Model: Two-Layer-MLP-1.2M
+  Dataset: Fashion-MNIST
+  
+  Config Content:
+  ```yaml
+  run_id: comparative-1-Two-Layer-MLP-1.2M-Fashion-MNIST
+method: BOIL
+model:
+  name: Two-Layer-MLP-1.2M
+  input_dim: 784
+  hidden_units: 256        # default, tuned via Optuna
+  output_classes: 10
+  activation: relu
+  weight_init: kaiming_uniform
+dataset:
+  name: Fashion-MNIST
+  transforms:
+    - ToTensor
+    - Normalize(mean=0.5, std=0.5)
+  validation_split: 0.1
+training:
+  batch_size: 128
+  optimizer: adam
+  loss_fn: cross_entropy
+  device: cuda
+  default_learning_rate: 1e-3
+  epochs_per_iteration: 5
+  num_workers: 8
+  pin_memory: true
+experiment:
+  n_init_points: 3
+  total_evaluations: 30
+  acquisition: BOIL         # log(EI) − log(cost)
+optuna:
+  n_trials: 30
+  direction: maximize
+  search_space:
+    learning_rate:
+      type: loguniform
+      low: 1e-4
+      high: 1e-1
+    hidden_units:
+      type: int
+      low: 64
+      high: 512
+    training_iteration_budget:
+      type: int
+      low: 1
+      high: 15
+
+  ```
+  
+
+
+# Generated Experiment Code (To be validated)
+{"config_yaml": "# config/config.yaml \u2013 top-level Hydra configuration\ndefaults:\n  - _self_\n\nrun:\n  run_id: default-run-id\n  method: placeholder\n\n# WandB logging\nwandb:\n  entity: gengaru617-personal\n  project: 251023-test\n  mode: online  # will be overridden to \"disabled\" automatically in trial_mode\n\n# General training configuration (overridden by run/* files)\nmodel:\n  name: dummy\n\ndataset:\n  name: dummy\n\ntraining:\n  batch_size: 64\n  device: cuda\n\noptuna:\n  n_trials: 1\n\nexperiment:\n  n_init_points: 1\n  total_evaluations: 1\n  acquisition: BOIL\n\n# CLI-controlled parameters ----------------------------------------------------\nresults_dir: outputs\ntrial_mode: false\n", "evaluate_py": "\"\"\"src/evaluate.py\nIndependent evaluation / visualisation script that runs after all\ntraining jobs have finished.  It pulls history \u0026 summary from WandB and\ncreates per-run as well as aggregated artefacts.\n\"\"\"\nfrom __future__ import annotations\n\nimport argparse\nimport json\nimport os\nimport statistics\nfrom pathlib import Path\nfrom typing import List\n\nimport matplotlib.pyplot as plt\nimport numpy as np\nimport seaborn as sns\nimport wandb\nfrom sklearn.metrics import ConfusionMatrixDisplay, confusion_matrix\n\nfrom .model import build_model\nfrom .preprocess import get_dataloaders\n\n\n######################################################################\n#                         Utility                                    #\n######################################################################\n\ndef _save_json(path: Path, obj):\n    path.parent.mkdir(parents=True, exist_ok=True)\n    with path.open(\"w\", encoding=\"utf-8\") as f:\n        json.dump(obj, f, indent=2, sort_keys=False)\n\n\ndef _plot_learning_curve(history_df, run_dir: Path, run_id: str):\n    plt.figure(figsize=(6, 4))\n    plt.plot(history_df[\"val_acc\"], label=\"Validation accuracy\")\n    plt.plot(history_df[\"train_acc\"], label=\"Training accuracy\", alpha=0.5)\n    plt.xlabel(\"Evaluation step\")\n    plt.ylabel(\"Accuracy\")\n    plt.title(f\"Learning curve \u2013 {run_id}\")\n    plt.legend()\n    plt.tight_layout()\n    fig_path = run_dir / f\"{run_id}_learning_curve.pdf\"\n    plt.savefig(fig_path)\n    plt.close()\n    return fig_path\n\n\ndef _plot_confusion(model_path: Path, cfg_path: Path, run_dir: Path, run_id: str):\n    import torch\n    from omegaconf import OmegaConf\n\n    if not model_path.exists():\n        return None\n\n    cfg = OmegaConf.load(cfg_path)\n    _, _, test_loader = get_dataloaders(cfg.dataset, cfg.training)\n    device = torch.device(\"cuda\" if torch.cuda.is_available() else \"cpu\")\n\n    model = build_model(cfg.model).to(device)\n    model.load_state_dict(torch.load(model_path, map_location=device))\n    model.eval()\n\n    all_preds, all_labels = [], []\n    with torch.no_grad():\n        for images, labels in test_loader:\n            images = images.to(device)\n            outputs = model(images)\n            preds = outputs.argmax(dim=1).cpu().numpy()\n            all_preds.append(preds)\n            all_labels.append(labels.numpy())\n    y_pred = np.concatenate(all_preds)\n    y_true = np.concatenate(all_labels)\n\n    cm = confusion_matrix(y_true, y_pred)\n    disp = ConfusionMatrixDisplay(cm)\n    disp.plot(cmap=\"Blues\")\n    plt.title(f\"Confusion Matrix \u2013 {run_id}\")\n    plt.tight_layout()\n    fig_path = run_dir / f\"{run_id}_confusion_matrix.pdf\"\n    plt.savefig(fig_path)\n    plt.close()\n    return fig_path\n\n######################################################################\n#                       Main evaluation                              #\n######################################################################\n\ndef main() -\u003e None:\n    parser = argparse.ArgumentParser()\n    parser.add_argument(\"results_dir\", type=str, help=\"Directory with training artefacts\")\n    parser.add_argument(\"run_ids\", type=str, help=\"JSON list of run-IDs to evaluate\")\n    args = parser.parse_args()\n\n    results_root = Path(args.results_dir).expanduser().resolve()\n    run_ids: List[str] = json.loads(args.run_ids)\n\n    cfg_global = json.load(open(results_root / run_ids[0] / \"config.yaml\"))\n    entity, project = cfg_global[\"wandb\"][\"entity\"], cfg_global[\"wandb\"][\"project\"]\n\n    api = wandb.Api()\n\n    aggregated_metrics = {}\n    per_run_paths = []\n\n    for rid in run_ids:\n        run_dir = results_root / rid\n        run_dir.mkdir(parents=True, exist_ok=True)\n\n        wb_run = api.run(f\"{entity}/{project}/{rid}\")\n        history = wb_run.history()  # pd.DataFrame\n        summary = wb_run.summary._json_dict\n        config = dict(wb_run.config)\n\n        # --- export raw metrics -------------------------------------------------\n        metrics_path = run_dir / \"metrics.json\"\n        _save_json(metrics_path, {\n            \"history\": history.to_dict(orient=\"list\"),\n            \"summary\": summary,\n            \"config\": config,\n        })\n\n        # --- figures -----------------------------------------------------------\n        lc_path = _plot_learning_curve(history, run_dir, rid)\n        cm_path = _plot_confusion(run_dir / \"best_model.pt\", run_dir / \"config.yaml\", run_dir, rid)\n\n        per_run_paths.extend([str(metrics_path), str(lc_path)] + ([str(cm_path)] if cm_path else []))\n\n        # store essential aggregated stats\n        aggregated_metrics[rid] = {\n            \"best_val_acc\": summary.get(\"best_val_accuracy\"),\n            \"wall_time_total\": summary.get(\"total_wall_time\"),\n            \"time_to_target\": summary.get(\"time_to_target\"),\n            \"evals_to_target\": summary.get(\"evals_to_target\"),\n        }\n\n    # ------------------- aggregated analysis ----------------------------------\n    comp_dir = results_root / \"comparison\"\n    comp_dir.mkdir(parents=True, exist_ok=True)\n\n    _save_json(comp_dir / \"aggregated_metrics.json\", aggregated_metrics)\n\n    # bar chart of best accuracy\n    plt.figure(figsize=(6, 4))\n    sns.barplot(x=list(aggregated_metrics.keys()),\n                y=[m[\"best_val_acc\"] for m in aggregated_metrics.values()])\n    plt.xticks(rotation=45, ha=\"right\")\n    plt.ylabel(\"Best validation accuracy\")\n    plt.title(\"Best accuracy across runs\")\n    for i, val in enumerate(aggregated_metrics.values()):\n        plt.text(i, val[\"best_val_acc\"] + 0.005, f\"{val[\u0027best_val_acc\u0027]:.3f}\", ha=\"center\")\n    plt.tight_layout()\n    acc_bar_path = comp_dir / \"comparison_best_accuracy_bar_chart.pdf\"\n    plt.savefig(acc_bar_path)\n    plt.close()\n\n    per_run_paths.append(str(acc_bar_path))\n\n    # print all generated paths -------------------------------------------------\n    for p in per_run_paths:\n        print(p)\n\n\nif __name__ == \"__main__\":\n    main()\n", "main_py": "\"\"\"src/main.py\nOrchestrates a single run by forking a subprocess that executes\n``src.train`` with the appropriate Hydra overrides.\n\"\"\"\nfrom __future__ import annotations\n\nimport subprocess\nimport sys\nfrom pathlib import Path\nfrom typing import List\n\nimport hydra\nfrom omegaconf import DictConfig\n\n\n@hydra.main(config_path=\"../config\", config_name=\"config\", version_base=None)\ndef main(cfg: DictConfig) -\u003e None:  # noqa: D401 \u2014 one-liner docstring not needed\n    # Convert config values to strings for cmd-line overrides\n    overrides: List[str] = [\n        f\"run={cfg.run.run_id}\",\n        f\"results_dir={cfg.results_dir}\",\n    ]\n    if cfg.trial_mode:\n        overrides.append(\"trial_mode=true\")\n\n    cmd = [sys.executable, \"-u\", \"-m\", \"src.train\", *overrides]\n    print(\"Launching:\", \" \".join(cmd))\n    subprocess.run(cmd, check=True)\n\n\nif __name__ == \"__main__\":\n    main()\n", "model_py": "\"\"\"src/model.py\nNetwork architecture definitions.\n\"\"\"\nfrom __future__ import annotations\n\nimport math\nfrom typing import Any\n\nimport torch\nimport torch.nn as nn\nfrom omegaconf import DictConfig\n\n\nclass TwoLayerMLP(nn.Module):\n    def __init__(self, input_dim: int, hidden_units: int, output_classes: int,\n                 activation: str = \"relu\", weight_init: str = \"kaiming_uniform\") -\u003e None:\n        super().__init__()\n        act_cls: Any = getattr(nn, activation.capitalize()) if hasattr(nn, activation.capitalize()) else nn.ReLU\n        self.net = nn.Sequential(\n            nn.Flatten(),\n            nn.Linear(input_dim, hidden_units),\n            act_cls(),\n            nn.Linear(hidden_units, output_classes),\n        )\n        self.apply(lambda m: self._init_weights(m, weight_init))\n\n    @staticmethod\n    def _init_weights(module: nn.Module, scheme: str):\n        if isinstance(module, nn.Linear):\n            if scheme == \"kaiming_uniform\":\n                nn.init.kaiming_uniform_(module.weight, nonlinearity=\"relu\")\n            elif scheme == \"kaiming_normal\":\n                nn.init.kaiming_normal_(module.weight, nonlinearity=\"relu\")\n            elif scheme == \"xavier_uniform\":\n                nn.init.xavier_uniform_(module.weight)\n            elif scheme == \"xavier_normal\":\n                nn.init.xavier_normal_(module.weight)\n            else:\n                raise ValueError(scheme)\n            if module.bias is not None:\n                nn.init.constant_(module.bias, 0)\n\n    def forward(self, x):  # noqa: D401  \u2013 one-liner docstring not necessary\n        return self.net(x)\n\n\n# -----------------------------------------------------------------------------\n#                               Factory                                         \n# -----------------------------------------------------------------------------\n\ndef build_model(model_cfg: DictConfig):\n    name = model_cfg.name.lower()\n    if name == \"two-layer-mlp-1.2m\":\n        return TwoLayerMLP(\n            input_dim=model_cfg.input_dim,\n            hidden_units=model_cfg.hidden_units,\n            output_classes=model_cfg.output_classes,\n            activation=model_cfg.activation,\n            weight_init=model_cfg.weight_init,\n        )\n    else:\n        raise NotImplementedError(name)\n", "preprocess_py": "\"\"\"src/preprocess.py\nData loading / preprocessing utilities.  Supports Fashion-MNIST only\nbut is written so that future datasets can be added easily.\n\"\"\"\nfrom __future__ import annotations\n\nfrom typing import Tuple\n\nimport torch\nimport torchvision.transforms as T\nfrom omegaconf import DictConfig\nfrom torch.utils.data import DataLoader, random_split\nfrom torchvision.datasets import FashionMNIST\n\n\ndef _parse_transforms(trans_list):\n    \"\"\"Convert a list of simple strings / dicts from YAML to torchvision ops.\"\"\"\n    ops = []\n    for item in trans_list:\n        if isinstance(item, str):\n            if item.lower() == \"totensor\":\n                ops.append(T.ToTensor())\n            else:\n                raise ValueError(item)\n        elif isinstance(item, dict):\n            # currently only Normalize supported\n            if \"Normalize\" in item:\n                mean = item[\"Normalize\"].get(\"mean\", 0.5)\n                std = item[\"Normalize\"].get(\"std\", 0.5)\n                ops.append(T.Normalize(mean=[mean], std=[std]))\n            else:\n                raise ValueError(item)\n        else:\n            raise TypeError(item)\n    return T.Compose(ops)\n\n\ndef get_dataloaders(ds_cfg: DictConfig, train_cfg: DictConfig) -\u003e Tuple[DataLoader, DataLoader, DataLoader]:\n    \"\"\"Return train, val, test PyTorch DataLoaders.\"\"\"\n    if ds_cfg.name.lower() != \"fashion-mnist\":\n        raise NotImplementedError(ds_cfg.name)\n\n    transform = _parse_transforms(ds_cfg.transforms)\n\n    root = \".cache/torchvision/fashion_mnist\"\n    train_full = FashionMNIST(root=root, train=True, download=True, transform=transform)\n    test_set = FashionMNIST(root=root, train=False, download=True, transform=transform)\n\n    val_split = ds_cfg.validation_split\n    val_size = int(len(train_full) * val_split)\n    train_size = len(train_full) - val_size\n    train_set, val_set = random_split(train_full, [train_size, val_size])\n\n    loader_kwargs = {\n        \"batch_size\": train_cfg.batch_size,\n        \"num_workers\": train_cfg.num_workers,\n        \"pin_memory\": train_cfg.pin_memory,\n    }\n    train_loader = DataLoader(train_set, shuffle=True, **loader_kwargs)\n    val_loader = DataLoader(val_set, shuffle=False, **loader_kwargs)\n    test_loader = DataLoader(test_set, shuffle=False, **loader_kwargs)\n\n    return train_loader, val_loader, test_loader\n", "pyproject_toml": "[build-system]\nrequires = [\"setuptools\u003e=61.0\"]\nbuild-backend = \"setuptools.build_meta\"\n\n[project]\nname = \"s-boil-experiment\"\nversion = \"0.1.0\"\ndependencies = [\n  \"torch\u003e=2.0\",              # PyTorch core\n  \"torchvision\u003e=0.15\",       # datasets + transforms\n  \"botorch\u003e=0.8.5\",          # GP + BO utils\n  \"gpytorch\u003e=1.11\",          # underlying GP library\n  \"hydra-core\u003e=1.3\",         # configuration management\n  \"wandb\u003e=0.15\",             # experiment tracking\n  \"optuna\u003e=3.4\",             # (search-space definitions)\n  \"scikit-learn\u003e=1.3\",       # linear regression + metrics\n  \"matplotlib\u003e=3.7\",         # plotting\n  \"seaborn\u003e=0.12\",           # prettier plots\n  \"pandas\u003e=2.0\",             # WandB history DataFrame manipulation\n  \"numpy\u003e=1.24\",             # numerical utils\n]\n\n[tool.setuptools.packages.find]\nwhere = [\"src\"]\n", "train_py": "\"\"\"src/train.py\nTrainer script executing a single hyper-parameter optimisation run.\nThis file must be executed through Hydra so that the full configuration\nis available under ``cfg``.  All heavy-lifting \u2013 data loading, model\nconstruction, BOIL / S-BOIL loop, wandb logging \u2013 happens here.\n\"\"\"\nfrom __future__ import annotations\n\nimport json\nimport math\nimport os\nimport subprocess\nimport sys\nimport time\nfrom pathlib import Path\nfrom typing import Dict, List, Tuple\n\nimport hydra\nimport numpy as np\nimport torch\nfrom botorch.fit import fit_gpytorch_model\nfrom botorch.models import SingleTaskGP\nfrom gpytorch.mlls import ExactMarginalLogLikelihood\nfrom omegaconf import DictConfig, OmegaConf\nfrom sklearn.linear_model import LinearRegression\nfrom torch import Tensor\n\nimport wandb\n\nfrom .model import build_model\nfrom .preprocess import get_dataloaders\n\n######################################################################\n#                       Utility helpers                              #\n######################################################################\n\ndef _log_uniform_sample(low: float, high: float, rng: np.random.Generator) -\u003e float:\n    return float(10 ** rng.uniform(np.log10(low), np.log10(high)))\n\n\ndef _sample_from_space(search_space: Dict, rng: np.random.Generator) -\u003e Dict:\n    \"\"\"Draw a random sample from an Optuna-style search-space dict.\"\"\"\n    sample: Dict = {}\n    for name, spec in search_space.items():\n        typ = spec[\"type\"].lower()\n        if typ == \"loguniform\":\n            sample[name] = _log_uniform_sample(spec[\"low\"], spec[\"high\"], rng)\n        elif typ == \"uniform\":\n            sample[name] = float(rng.uniform(spec[\"low\"], spec[\"high\"]))\n        elif typ == \"int\":\n            sample[name] = int(rng.integers(spec[\"low\"], spec[\"high\"] + 1))\n        elif typ == \"categorical\":\n            sample[name] = rng.choice(spec[\"choices\"])\n        else:\n            raise ValueError(f\"Unknown search-space type: {typ}\")\n    return sample\n\n\ndef _encode_x(sample: Dict, search_space: Dict) -\u003e List[float]:\n    \"\"\"Encode a configuration *sample* into a normalised numeric list in [0,1].\"\"\"\n    vec: List[float] = []\n    for name, spec in search_space.items():\n        val = sample[name]\n        typ = spec[\"type\"].lower()\n        if typ == \"loguniform\":  # work in log\u2081\u2080 domain\n            low, high = math.log10(spec[\"low\"]), math.log10(spec[\"high\"])\n            val = math.log10(val)\n            vec.append((val - low) / (high - low))\n        elif typ in {\"uniform\", \"int\"}:\n            low, high = spec[\"low\"], spec[\"high\"]\n            vec.append((float(val) - low) / (high - low))\n        elif typ == \"categorical\":\n            # ordinal encode according to index in list\n            idx = spec[\"choices\"].index(val)\n            high = len(spec[\"choices\"]) - 1\n            vec.append(idx / high)\n        else:\n            raise ValueError(typ)\n    return vec\n\n\ndef _build_gp(X: Tensor, Y: Tensor) -\u003e SingleTaskGP:\n    gp = SingleTaskGP(X, Y)\n    mll = ExactMarginalLogLikelihood(gp.likelihood, gp)\n    fit_gpytorch_model(mll)\n    return gp\n\n\ndef _expected_improvement(mu: Tensor, sigma: Tensor, best: float) -\u003e Tensor:\n    \"\"\"Analytical EI; mu/sigma shape (*,1).  Returns same shape.\"\"\"\n    sigma = sigma.clamp_min(1e-9)\n    u = (mu - best) / sigma\n    normal = torch.distributions.Normal(torch.tensor(0.0, device=mu.device),\n                                        torch.tensor(1.0, device=mu.device))\n    ei = (mu - best) * normal.cdf(u) + sigma * normal.log_prob(u).exp()\n    return ei.clamp_min(0.0)\n\n######################################################################\n#                          Training loop                             #\n######################################################################\n\ndef _train_once(sample: Dict, cfg: DictConfig, device: torch.device,\n                global_step: int, wb_run: wandb.sdk.wandb_run.Run) -\u003e Tuple[float, float]:\n    \"\"\"Train model for one BO evaluation.  Returns (val_acc, wall_time).\"\"\"\n    start = time.perf_counter()\n\n    # Update cfg with the hyper-parameters we evaluate this round\n    cfg_local = OmegaConf.create(OmegaConf.to_container(cfg, resolve=True))  # deep copy\n    cfg_local.model.hidden_units = int(sample[\"hidden_units\"])\n    cfg_local.training.learning_rate = float(sample[\"learning_rate\"])\n    budget = int(sample[\"training_iteration_budget\"])\n    epochs = int(budget * cfg.training.epochs_per_iteration)\n\n    train_loader, val_loader, _ = get_dataloaders(cfg.dataset, cfg.training)\n\n    model = build_model(cfg_local.model).to(device)\n    criterion = torch.nn.CrossEntropyLoss()\n    optimizer = torch.optim.Adam(model.parameters(), lr=cfg_local.training.learning_rate)\n\n    best_val_acc = 0.0\n\n    for epoch in range(1, epochs + 1):\n        model.train()\n        total, correct, running_loss = 0, 0, 0.0\n        for images, labels in train_loader:\n            images, labels = images.to(device), labels.to(device)\n            optimizer.zero_grad()\n            outputs = model(images)\n            loss = criterion(outputs, labels)\n            loss.backward()\n            optimizer.step()\n            running_loss += loss.item() * labels.size(0)\n            _, preds = torch.max(outputs, 1)\n            total += labels.size(0)\n            correct += (preds == labels).sum().item()\n        train_loss = running_loss / total\n        train_acc = correct / total\n\n        # Validation\n        model.eval()\n        total_v, correct_v, val_loss_tot = 0, 0, 0.0\n        with torch.no_grad():\n            for images, labels in val_loader:\n                images, labels = images.to(device), labels.to(device)\n                outputs = model(images)\n                loss = criterion(outputs, labels)\n                val_loss_tot += loss.item() * labels.size(0)\n                _, preds = torch.max(outputs, 1)\n                total_v += labels.size(0)\n                correct_v += (preds == labels).sum().item()\n        val_loss = val_loss_tot / total_v\n        val_acc = correct_v / total_v\n        best_val_acc = max(best_val_acc, val_acc)\n\n        # log to wandb\n        metrics = {\n            \"step\": global_step,\n            \"epoch\": epoch,\n            \"train_loss\": train_loss,\n            \"train_acc\": train_acc,\n            \"val_loss\": val_loss,\n            \"val_acc\": val_acc,\n            \"hyperparams/learning_rate\": cfg_local.training.learning_rate,\n            \"hyperparams/hidden_units\": cfg_local.model.hidden_units,\n            \"hyperparams/budget_epochs\": epochs,\n        }\n        wb_run.log(metrics)\n\n    wall_time = time.perf_counter() - start\n    return best_val_acc, wall_time\n\n######################################################################\n#                           Main entry                               #\n######################################################################\n\n@hydra.main(config_path=\"../config\", config_name=\"config\", version_base=None)\ndef train(cfg: DictConfig) -\u003e None:  # noqa: C901  -- complexity unavoidable\n    # ------------------------------------------------------------------\n    # Trial-mode overrides (lightweight CI runs)\n    # ------------------------------------------------------------------\n    if cfg.trial_mode:\n        cfg.wandb.mode = \"disabled\"\n        cfg.optuna.n_trials = 2\n        cfg.experiment.total_evaluations = 2\n        cfg.training.epochs_per_iteration = 1\n\n    # ------------------------------------------------------------------\n    # Prepare output directory and WandB initialisation\n    # ------------------------------------------------------------------\n    root_output = Path(hydra.utils.to_absolute_path(cfg.results_dir)) / cfg.run.run_id\n    root_output.mkdir(parents=True, exist_ok=True)\n\n    # Save *resolved* configuration for later inspection / evaluation\n    OmegaConf.save(cfg, root_output / \"config.yaml\")\n\n    if cfg.wandb.mode != \"disabled\":\n        wb_run = wandb.init(\n            entity=cfg.wandb.entity,\n            project=cfg.wandb.project,\n            id=cfg.run.run_id,\n            dir=str(root_output),\n            config=OmegaConf.to_container(cfg, resolve=True),\n            resume=\"allow\",\n            mode=cfg.wandb.mode,\n        )\n        print(f\"WandB URL: {wb_run.url}\")\n    else:\n        wb_run = wandb.init(mode=\"disabled\")\n\n    device = torch.device(cfg.training.device if torch.cuda.is_available() else \"cpu\")\n\n    # ------------------------------------------------------------------\n    # BOIL / S-BOIL optimisation loop\n    # ------------------------------------------------------------------\n    search_space = cfg.optuna.search_space\n    rng = np.random.default_rng(seed=42)\n    n_init = cfg.experiment.n_init_points\n    total_evals = cfg.experiment.total_evaluations\n\n    X_list: List[List[float]] = []  # encoded\n    Y_list: List[float] = []        # val acc\n    cost_list: List[float] = []     # wall time\n\n    global_step = 0\n\n    for eval_id in range(total_evals):\n        # --------------------------------------------------------------\n        # Suggest next configuration\n        # --------------------------------------------------------------\n        if eval_id \u003c n_init:\n            # random initial design\n            sample = _sample_from_space(search_space, rng)\n        else:\n            # fit surrogate models\n            X_tensor = torch.tensor(X_list, dtype=torch.double)\n            Y_tensor = torch.tensor(Y_list, dtype=torch.double).unsqueeze(-1)\n            gp = _build_gp(X_tensor, Y_tensor)\n            best_y = max(Y_list)\n\n            # Linear regression for cost (log-cost)\n            lr_model = LinearRegression().fit(np.asarray(X_list), np.log(np.asarray(cost_list) + 1e-8))\n\n            # Candidate set sampled randomly; acquisition computed for each\n            cand_samples = [_sample_from_space(search_space, rng) for _ in range(512)]\n            cand_X_enc = torch.tensor([_encode_x(s, search_space) for s in cand_samples], dtype=torch.double)\n            post = gp.posterior(cand_X_enc)\n            mu, var = post.mean.squeeze(-1), post.variance.squeeze(-1)\n            std = var.clamp_min(1e-9).sqrt()\n            ei = _expected_improvement(mu.unsqueeze(-1), std.unsqueeze(-1), best_y).squeeze(-1)\n\n            # cost prediction\n            cost_pred = np.exp(lr_model.predict(cand_X_enc.cpu().numpy()))\n            cost_pred = torch.from_numpy(cost_pred).double()\n\n            if cfg.experiment.acquisition.lower() == \"boil\":\n                acq = torch.log(ei + 1e-10) - torch.log(cost_pred + 0.1)\n            elif cfg.experiment.acquisition.lower() == \"s-boil\":\n                # beta per candidate if present else default\n                beta_vals = torch.tensor([s.get(\"beta\", cfg.experiment.beta_default) for s in cand_samples], dtype=torch.double)\n                acq = torch.log(ei + 1e-10) - beta_vals * var - torch.log(cost_pred + 0.1)\n            else:\n                raise ValueError(f\"Unknown acquisition {cfg.experiment.acquisition}\")\n\n            best_idx = int(torch.argmax(acq).item())\n            sample = cand_samples[best_idx]\n\n        # --------------------------------------------------------------\n        # Evaluate configuration (train network)\n        # --------------------------------------------------------------\n        cfg_sample = OmegaConf.merge(cfg, sample)  # for logging only\n        wb_run.log({f\"eval/{k}\": v for k, v in sample.items()}, step=global_step)\n        val_acc, wall_time = _train_once(sample, cfg, device, global_step, wb_run)\n\n        # Append observations\n        X_list.append(_encode_x(sample, search_space))\n        Y_list.append(val_acc)\n        cost_list.append(wall_time)\n\n        # Log evaluation-level metrics\n        wb_run.log({\n            \"eval_id\": eval_id,\n            \"val_acc\": val_acc,\n            \"wall_time\": wall_time,\n            \"best_val_acc_so_far\": max(Y_list),\n        }, step=global_step)\n        global_step += 1\n\n        # early record time-to-target\n        if val_acc \u003e= 0.8 and \"time_to_target\" not in wb_run.summary:\n            elapsed_total = sum(cost_list)\n            wb_run.summary[\"time_to_target\"] = elapsed_total\n            wb_run.summary[\"evals_to_target\"] = eval_id + 1\n\n    # ------------------------------------------------------------------\n    # Finish run \u2013 store best metrics and (optionally) model artefact\n    # ------------------------------------------------------------------\n    best_idx = int(np.argmax(Y_list))\n    best_sample = _sample_from_space(search_space, np.random.default_rng())  # placeholder for merge\n    best_sample.update({k: v for k, v in sample.items()})\n    wb_run.summary[\"best_val_accuracy\"] = float(Y_list[best_idx])\n    wb_run.summary[\"total_wall_time\"] = float(sum(cost_list))\n\n    wandb.finish()\n\nif __name__ == \"__main__\":\n    train()\n"}
+
+Analyze the experiment code thoroughly. Ensure it is complete, executable, and ready for publication-quality research experiments.
+Output:
+{
+    "is_code_ready": false,
+    "code_issue": "The package violates several mandatory requirements:\n\n1. Evaluation script is broken\n   • Reads “config.yaml” with json.load() although the file is YAML → runtime crash.\n   • Depends on best_model.pt but train.py never saves the model.\n   • Aggregated analysis is incomplete: no improvement-rate, no statistical tests, no box/ bar charts for all mandatory metrics.\n\n2. Incomplete / placeholder code\n   • train.py line 310: ‘best_sample = _sample_from_space(... )  # placeholder for merge’ – placeholder left in production code.\n\n3. Trial-mode not fully honoured\n   • Batch number / dataset size are not reduced to 1-2 batches; Optuna is only limited to 2 trials instead of 0.\n\n4. Missing model persistence\n   • No model checkpoint is written, yet evaluate.py expects it for confusion-matrix drawing.\n\n5. Hydra / CLI mismatch\n   • main.py launches “src.train” with overrides but never forwards ‘wandb.mode’; recommended interface from the spec is therefore unmet.\n\n6. Required figures naming & analysis conventions not fully implemented (e.g. confusion-matrix, comparison_* names when cm_path is None, no unique pair suffix handling).\n\nBecause of the above issues the code will not execute successfully in its current form and is not publication-ready."
+}
